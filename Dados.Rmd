@@ -1,0 +1,295 @@
+---
+title: "Untitled"
+author: "Caio Lima"
+date: "11 de maio de 2021"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(RSQLite)
+library(httr)
+library(rvest)
+library(stringr)
+library(stringi)
+```
+
+
+```{r}
+url = "https://www.tudogostoso.com.br"
+webpage <- read_html(paste0(url, "/categorias"))
+categorias <- webpage %>%
+  html_nodes("div.container.page-tags") %>% 
+  html_nodes(".row") %>% 
+  html_nodes("div > div.page-title.col-12 > a") %>% 
+  html_attr("href")
+categorias_url <- paste0(url, categorias)
+
+links <- list()
+df <- data.frame(a = "", b = "", c = "", d = "", e = "", f = "", g = "", h = "",
+                 i = "", j = "") 
+cat <- gsub(".*[0-9]+-", "", categorias)
+colnames(df) <- cat[1:10]
+
+j <- 1
+k <- 15
+while(j < 151){
+  for(i in 1:10){
+    links[[i]] <- ""
+    categoria_webpage <- read_html(paste0(categorias_url[i], ".html?page=", j))
+    cat_link <- categoria_webpage %>% 
+      html_nodes("body") %>% 
+      html_nodes(".tdg-main") %>% 
+      html_nodes(".category-page") %>% 
+      html_nodes(".container") %>% 
+      html_nodes(".col-lg-5") %>% 
+      html_nodes(".rounded") %>% 
+      html_nodes(".mb-3.recipe-card.recipe-card-with-hover") %>% 
+      html_nodes("a") %>% 
+      html_attr("href")
+    links[[i]] <- c(links[[i]], cat_link)
+  }
+  df_temp <- data.frame(links[[1]])
+  for(k in 2:10){
+    df_temp <- cbind(df_temp, links[[k]])
+  }
+  colnames(df_temp) <- cat[1:10]
+  df <- rbind(df,df_temp[-1,])
+  j <- j + 1
+  
+}
+
+write_csv(df[-1,], "dados_links.csv")
+write_csv(dados, "dados.csv") 
+```
+
+
+```{r}
+df <- read_csv("dados_links.csv") %>% 
+  select(-c(lanches, bebidas, `saladas-molhos-e-acompanhamentos`, sopas))
+```
+
+
+```{r}
+url = "https://www.tudogostoso.com.br"
+
+categoria <- NULL
+tempo_preparo <- NULL
+rendimento <- NULL
+ingredientes <- NULL
+for(i in 1:1000){
+  for(j in 1:6){
+    categoria <- c(categoria, colnames(df)[j])
+    receita <- read_html(paste0(url, df[i,j]))
+    
+    clock <- receita %>% 
+      html_nodes("body > div.tdg-main > div.recipe-page > div >
+                 div.recipe-container.col-lg-12 > div:nth-child(1) > div >
+                 div.recipe-info.col-lg-8 > div.recipe-media > div.row > div > div >
+                 div.clock.block.col-lg-2 > span.num.preptime > time") %>% 
+      html_text()
+    tempo_preparo <- c(tempo_preparo, gsub("\\n", "", clock))
+    
+    serve <- receita %>% 
+      html_nodes("body > div.tdg-main > div.recipe-page > div >
+                 div.recipe-container.col-lg-12 > div:nth-child(1) > div >
+                 div.recipe-info.col-lg-8 > div.recipe-media > div.row > div > div >
+                 div.serve.block.col-lg-2 > data") %>% 
+      html_text()
+    rendimento <- c(rendimento, gsub("\\n", "", serve))
+    
+    lista_ing <- receita %>% 
+      html_nodes("#info-user") %>% 
+      html_nodes(".p-ingredient") %>% 
+      html_text() %>% 
+      paste(collapse = " ")
+    ingredientes <- c(ingredientes, lista_ing)
+  }
+}
+
+
+dados <- data.frame(categoria) %>% 
+  cbind(tempo_preparo) %>% 
+  cbind(rendimento) %>% 
+  cbind(ingredientes) %>% 
+  mutate(ingredientes = tolower(stri_trans_general(ingredientes,id = "Latin-ASCII")),
+         ingredientes = gsub(pattern = "[)]", replacement = "", ingredientes),
+         ingredientes = gsub(pattern = "[(]", replacement = "", ingredientes),
+         ingredientes = gsub(pattern = ":", replacement = "", ingredientes),
+         ingredientes = gsub(pattern = ",", replacement = "", ingredientes),
+         ingredientes = gsub(pattern = "\\.", replacement = "", ingredientes))
+
+
+palavras <- strsplit(dados$ingredientes, " ") %>% 
+  unlist() %>% 
+  table() %>% as.data.frame()
+
+
+dados_t <- dados %>% 
+  mutate(abacate = ifelse(str_detect(ingredientes, "abacate"), 1,0),
+         abacaxi = ifelse(str_detect(ingredientes, "abacaxi"), 1,0),
+         abobora = ifelse(str_detect(ingredientes, "abobora"), 1,0),
+         aborinha = ifelse(str_detect(ingredientes, "abobrinha"), 1,0),
+         acem = ifelse(str_detect(ingredientes, "acem"), 1,0),
+         achocolatado = ifelse(str_detect(ingredientes, "achocolatado") |
+                               str_detect(ingredientes, "nescau"), 1,0),
+         acucar = ifelse(str_detect(ingredientes, "acucar"), 1,0),
+         agua = ifelse(str_detect(ingredientes, "agua "), 1,0),
+         aipim = ifelse(str_detect(ingredientes, "aipim"), 1,0),
+         alcaparras = ifelse(str_detect(ingredientes, "alcapara") |
+                            str_detect(ingredientes, "alcaparra"), 1,0),
+         alcatra = ifelse(str_detect(ingredientes, "alcatra"), 1,0),
+         alecrim = ifelse(str_detect(ingredientes, "alecrim"), 1,0),
+         alface = ifelse(str_detect(ingredientes, "alface"), 1,0),
+         alho = ifelse(str_detect(ingredientes, " alho ") |
+                       str_detect(ingredientes, " alhos "), 1,0),
+         amido_milho = ifelse(str_detect(ingredientes, "amido"), 1,0),
+         arroz = ifelse(str_detect(ingredientes, "arroz"), 1,0),
+         atum = ifelse(str_detect(ingredientes, "aveia"), 1,0),
+         azeite = ifelse(str_detect(ingredientes, "azeite"), 1,0),
+         azeitona = ifelse(str_detect(ingredientes, "azeitona"), 1,0),
+         bacalhau = ifelse(str_detect(ingredientes, "bacalhau"), 1,0),
+         bacon = ifelse(str_detect(ingredientes, "bacon"), 1,0),
+         banana = ifelse(str_detect(ingredientes, "banana"), 1,0),
+         batata = ifelse(str_detect(ingredientes, "batata"), 1,0),
+         baunilha = ifelse(str_detect(ingredientes, "baunilha"), 1,0),
+         file_mignon = ifelse(str_detect(ingredientes, "file mignon"), 1,0),
+         fermento_bio = ifelse(str_detect(ingredientes, "biologico"), 1,0),
+         fermento_quim = ifelse(str_detect(ingredientes, "fermento") &
+                           !str_detect(ingredientes, "biologico"), 1,0),
+         biscoito = ifelse(str_detect(ingredientes, "biscoito") |
+                           str_detect(ingredientes, "bolacha"), 1,0),
+         cafe = ifelse(str_detect(ingredientes, "cafe"), 1,0),
+         calabresa = ifelse(str_detect(ingredientes, "calabresa"), 1,0),
+         camarao = ifelse(str_detect(ingredientes, "camarao") |
+                          str_detect(ingredientes, "camaroes"), 1,0),
+         carne_seca = ifelse(str_detect(ingredientes, "carne seca"), 1,0),
+         carne_moida = ifelse(str_detect(ingredientes, "moida") |
+                              str_detect(categoria, "carne"), 1,0),
+         contra_file = ifelse(str_detect(ingredientes, "contra file") |
+                              str_detect(ingredientes, "contra-file"), 1,0),
+         canela = ifelse(str_detect(ingredientes, "canela"), 1,0),
+         caldo = ifelse(str_detect(ingredientes, "caldo"), 1,0),
+         katchup = ifelse(str_detect(ingredientes, "katchup") |
+                          str_detect(ingredientes, "catchup") |
+                          str_detect(ingredientes, "catchupe"), 1,0),
+         catupiry = ifelse(str_detect(ingredientes, "catupiry") |
+                           str_detect(ingredientes, "catupiri") |
+                           str_detect(ingredientes, "catipiry"), 1,0),
+         cebola = ifelse(str_detect(ingredientes, "cebola"), 1,0),
+         cebolinha = ifelse(str_detect(ingredientes, "cebolinha"), 1,0),
+         cenoura = ifelse(str_detect(ingredientes, "cenoura"), 1,0),
+         cerveja = ifelse(str_detect(ingredientes, "cerveja"), 1,0),
+         champanhe = ifelse(str_detect(ingredientes, "champanhe") |
+                            str_detect(ingredientes, "champagne") |
+                            str_detect(ingredientes, "chamapgne"), 1,0),
+         champignon = ifelse(str_detect(ingredientes, "champignon") |
+                             str_detect(ingredientes, "champignons") |
+                             str_detect(ingredientes, "champingnon"), 1,0),
+         chantilly = ifelse(str_detect(ingredientes, "chantilly") |
+                            str_detect(ingredientes, "chantily"), 1,0),
+         cheiro_verde = ifelse(str_detect(ingredientes, "cheiro verde") |
+                               str_detect(ingredientes, "cheiro-verde"), 1,0),
+         chocolate = ifelse(str_detect(ingredientes, "chocolate"), 1,0),
+         clara = ifelse(str_detect(ingredientes, "clara"), 1,0),
+         coco = ifelse(str_detect(ingredientes, "coco") &
+                       !str_detect(ingredientes, "leite de coco"), 1,0),
+         leite_coco = ifelse(str_detect(ingredientes, "leite de coco"), 1,0),
+         coentro = ifelse(str_detect(ingredientes, "coentro"), 1,0),
+         cogumelo = ifelse(str_detect(ingredientes, "cogumelo"), 1,0),
+         leite_condensado = ifelse(str_detect(ingredientes, "leite condensado"), 1,0),
+         costela = ifelse(str_detect(ingredientes, "costel"), 1,0),
+         coxa = ifelse(str_detect(ingredientes, "coxa") &
+                       !str_detect(ingredientes, "coxao"), 1,0),
+         creme_leite = ifelse(str_detect(ingredientes, "creme de leite"), 1,0),
+         ovo = ifelse(str_detect(ingredientes, " ovo"), 1,0),
+         erva = ifelse(str_detect(ingredientes, "erva"), 1,0),
+         ervilha = ifelse(str_detect(ingredientes, "ervilha"), 1,0),
+         frango = ifelse(str_detect(ingredientes, "frango") |
+                         str_detect(ingredientes, "galinha") |
+                         !str_detect(ingredientes, "caldo"), 1,0),
+         gelatina = ifelse(str_detect(ingredientes, "gelatina"), 1,0),
+         granulado = ifelse(str_detect(ingredientes, "granulado"), 1,0),
+         iogurte = ifelse(str_detect(ingredientes, "iogurte"), 1,0),
+         lagosta = ifelse(str_detect(ingredientes, "lagosta") |
+                          str_detect(ingredientes, "lagosti"), 1,0),
+         laranja = ifelse(str_detect(ingredientes, "laranja"), 1,0),
+         leite = ifelse(str_detect(ingredientes, "leite") &
+                        !str_detect(ingredientes, "creme de leite") &
+                        !str_detect(ingredientes, "leite de coco") &
+                        !str_detect(ingredientes, "leite condensado"), 1,0),
+         gemas = ifelse(str_detect(ingredientes, "gema"), 1,0),
+         limao = ifelse(str_detect(ingredientes, "limao") |
+                        str_detect(ingredientes, "limoes"), 1,0),
+         macarrao = ifelse(str_detect(ingredientes, "macarrao"), 1,0),
+         lula = ifelse(str_detect(ingredientes, "lula"), 1,0),
+         sal = ifelse(str_detect(ingredientes, " sal "), 1,0),
+         maionese = ifelse(str_detect(ingredientes, "maionese"), 1,0),
+         maizena = ifelse(str_detect(ingredientes, "maizena") |
+                          str_detect(ingredientes, "maisena") |
+                          str_detect(ingredientes, "margarina") & 
+                          str_detect(ingredientes, "bolacha") & 
+                          str_detect(ingredientes, "biscoito"), 1,0),
+         mandioca = ifelse(str_detect(ingredientes, "mandioc"), 1,0),
+         maracuja = ifelse(str_detect(ingredientes, "maracuj"), 1,0),
+         manteiga = ifelse(str_detect(ingredientes, "manteiga"), 1,0),
+         massa = ifelse(str_detect(ingredientes, "massa"), 1,0),
+         morango = ifelse(str_detect(ingredientes, "morango"), 1,0),
+         mostarda = ifelse(str_detect(ingredientes, "mostarda"), 1,0),
+         queijo = ifelse(str_detect(ingredientes, "queijo") |
+                         str_detect(ingredientes, "mussarela") |
+                         str_detect(ingredientes, "parmesao"), 1,0),
+         molho = ifelse(str_detect(ingredientes, "molho"), 1,0),
+         milho = ifelse(str_detect(ingredientes, "milho") &
+                        !str_detect(ingredientes, "amido")&
+                        !str_detect(ingredientes, "tomilho"), 1,0),
+         noz = ifelse(str_detect(ingredientes, " noz"), 1,0),
+         oleo = ifelse(str_detect(ingredientes, "oleo"), 1,0),
+         oregano = ifelse(str_detect(ingredientes, "oregano"), 1,0),
+         maca = ifelse(str_detect(ingredientes, " maca ") |
+                       str_detect(ingredientes, " macas "), 1,0),
+         palmito = ifelse(str_detect(ingredientes, "palmito"), 1,0),
+         patinho = ifelse(str_detect(ingredientes, "patinho"), 1,0),
+         peito = ifelse(str_detect(ingredientes, "peito"), 1,0),
+         pimenta = ifelse(str_detect(ingredientes, "pimenta") &
+                          !str_detect(ingredientes, "pimentao"), 1,0),
+         pimentao = ifelse(str_detect(ingredientes, "pimentao") |
+                          str_detect(ingredientes, "pimentoe"), 1,0),
+         porco = ifelse(str_detect(ingredientes, "porco"), 1,0),
+         presunto = ifelse(str_detect(ingredientes, "presunto"), 1,0),
+         vinagre = ifelse(str_detect(ingredientes, "vinagre"), 1,0),
+         requeijao = ifelse(str_detect(ingredientes, "requeijao"), 1,0),
+         tomate = ifelse(str_detect(ingredientes, "tomate") &
+                         !str_detect(ingredientes, "molho"), 1,0),
+         shoyu = ifelse(str_detect(ingredientes, "shoyu") |
+                        str_detect(ingredientes, "shoyo"), 1,0),
+         carangueijo = ifelse(str_detect(ingredientes, "carangue") |
+                        str_detect(ingredientes, "siri"), 1,0),
+         salsinha = ifelse(str_detect(ingredientes, "salsinha"), 1,0),
+         peixe = ifelse(str_detect(ingredientes, "peixe") |
+                        str_detect(ingredientes, "pescad")|
+                        str_detect(ingredientes, "salmao")|
+                        str_detect(ingredientes, "sardinha")|
+                        str_detect(ingredientes, "talapia"), 1,0),
+         pao = ifelse(str_detect(ingredientes, " pao ") |
+                       str_detect(ingredientes, " paes "), 1,0))
+
+#Manualmente
+if(sum(str_detect(ingredientes, "ovo")) > 0){
+  flg_ovo <- 1
+} else if(sum(str_detect(ingredientes, "farinha de trigo")) > 0){
+  flg_far_trigo <- 1
+} else if(sum(str_detect(ingredientes, "açucar")) > 0){
+  flg_acucar <- 1
+} else if(sum(str_detect(ingredientes, "fermento")) > 0){
+  flg_fermento <- 1
+} else if(sum(str_detect(ingredientes, "sal")) > 0){
+  flg_sal <- 1
+} else if(sum(str_detect(ingredientes, "maçã")) > 0){
+  flg_fermento <- 1
+}
+
+#Criar base de para com todos os ingredientes
+#Fazer testes ate nao encontrar mais ingred
+```
+
